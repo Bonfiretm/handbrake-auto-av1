@@ -1,0 +1,63 @@
+name: Build & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (z.B. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
+
+      - name: Build Executable with HandBrakeCLI
+        run: |
+          python build_exe.py
+
+      - name: Verify Generated Executable
+        run: |
+          if (Test-Path dist/HandBrakeAutoAV1.exe) {
+            $size = (Get-Item dist/HandBrakeAutoAV1.exe).Length / 1MB
+            Write-Host ("Build erfolgreich! Dateigröße: {0:N2} MB" -f $size)
+          } else {
+            Write-Error "dist/HandBrakeAutoAV1.exe wurde nicht erzeugt!"
+            exit 1
+          }
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
+          name: ${{ github.ref_name || github.event.inputs.tag_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/HandBrakeAutoAV1.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

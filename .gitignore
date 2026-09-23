@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Build & Dist artifacts
+build/
+dist/
+*.spec
+
+# Binaries (automatically downloaded on build)
+bin/HandBrakeCLI.exe
+bin/*.zip
+
+# Temporary update files
+*.tmp
+*updater.bat
+*HandBrakeAutoAV1_new.exe
+
+# Logs & AppData
+*.log
+.gemini/
+
+# IDEs
+.vscode/
+.idea/
+
+# Desktop Shortcuts
+*.lnk
