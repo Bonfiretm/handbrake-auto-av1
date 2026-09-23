@@ -42,7 +42,7 @@ Lade die neueste Version direkt aus den [GitHub Releases](https://github.com/Bon
   - Konvertiert ganze Ordner nacheinander mit Echtzeit-Fortschrittsanzeige.
   - **Intelligenter Skip**: Erkennt automatisch Videos, die bereits als AV1-10bit vorliegen, und überspringt diese.
 - **📐 100% Exakte Quellparameter-Übernahme**:
-  - **Auflösung**: Kein Pixelverlust (`--crop 0:0:0:0 --auto-anamorphic`), originale Auflösung und Seitenverhältnis bleiben unverändert.
+  - **Auflösung**: Kein Pixelverlust (`--crop-mode none`, smart anamorphic handling), originale Auflösung und Seitenverhältnis bleiben ohne Verzerrungen unverändert erhalten.
   - **Bildrate**: Behält exakt die Quell-Framerate bei (`--rate <fps> --pfr`).
   - **Audio**: Verlustfreies Passthrough aller Tonspuren (`--all-audio --aencoder copy`), inkl. Dolby Atmos/TrueHD, DTS-HD, AC3, EAC3, AAC, FLAC, Opus.
   - **Untertitel & Kapitel**: Alle Untertitelspuren und Kapitelmarker werden originalgetreu übernommen.

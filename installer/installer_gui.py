@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 )
 
 APP_NAME = "HandBrake Auto AV1-10bit"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 PUBLISHER = "Bonfiretm"
 DEFAULT_INSTALL_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Programs" / "HandBrakeAutoAV1"
 

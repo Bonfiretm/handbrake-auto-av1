@@ -305,6 +305,24 @@ class ConversionWorker(QThread):
         rf = self.config.get("quality_rf", 26)
         preset = str(self.config.get("encoder_preset", "6"))
 
+        # Determine anamorphic mode:
+        # Standard digital videos use square pixels (PAR 1:1). Some web/container files
+        # have fractional SAR metadata (e.g. 1817:1815) which causes --auto-anamorphic
+        # to generate huge unreduced fractions (DAR 78131:32670) that overflow 16-bit
+        # integers in VLC/Direct3D and crush video aspect ratio into a narrow column.
+        # If PAR is within 5% of 1:1, force --non-anamorphic (clean 1:1 square pixels).
+        # Otherwise, preserve anamorphic display ratio for genuine anamorphic sources (e.g. DVDs).
+        anamorphic_flag = "--non-anamorphic"
+        if self.metadata and self.metadata.par_str:
+            try:
+                parts = self.metadata.par_str.split(":")
+                if len(parts) == 2 and int(parts[1]) > 0:
+                    par_ratio = int(parts[0]) / int(parts[1])
+                    if par_ratio < 0.95 or par_ratio > 1.05:
+                        anamorphic_flag = "--auto-anamorphic"
+            except Exception:
+                anamorphic_flag = "--non-anamorphic"
+
         cmd = [
             str(self.hb_cli),
             "-i", str(self.input_path),
@@ -313,9 +331,9 @@ class ConversionWorker(QThread):
             "-e", "svt_av1_10bit",
             "-q", str(rf),
             "--encoder-preset", preset,
-            # Exact resolution preservation: no crop, auto anamorphic
-            "--crop", "0:0:0:0",
-            "--auto-anamorphic",
+            # Exact resolution preservation: no crop, smart anamorphic
+            "--crop-mode", "none",
+            anamorphic_flag,
             # Exact framerate preservation: same as source, peak framerate
             "--rate", str(self.metadata.fps),
             "--pfr",
