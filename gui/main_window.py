@@ -267,7 +267,7 @@ class MainWindow(QWidget):
 
         self.btn_check_update = QPushButton(f"🔄 v{APP_VERSION}")
         self.btn_check_update.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_check_update.setToolTip(f"Klicken, um nach Updates im GitHub-Repository ({self.config.get('github_repo', 'itsbonfiretime/handbrake-auto-av1')}) zu suchen")
+        self.btn_check_update.setToolTip(f"Klicken, um nach Updates im GitHub-Repository ({self.config.get('github_repo', 'Bonfiretm/handbrake-auto-av1')}) zu suchen")
         self.btn_check_update.setStyleSheet(
             "background-color: #161b22; color: #8b949e; border: 1px solid #30363d; "
             "padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 11px;"
@@ -681,7 +681,7 @@ class MainWindow(QWidget):
         if self.update_worker and self.update_worker.isRunning():
             return
 
-        repo = self.config.get("github_repo", "itsbonfiretime/handbrake-auto-av1")
+        repo = self.config.get("github_repo", "Bonfiretm/handbrake-auto-av1")
         if manual:
             self.btn_check_update.setText("🔄 Prüfe...")
             self.btn_check_update.setEnabled(False)

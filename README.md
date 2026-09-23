@@ -1,7 +1,7 @@
 # ⚡ HandBrake Auto AV1-10bit Converter (Windows)
 
-[![GitHub Release](https://img.shields.io/github/v/release/itsbonfiretime/handbrake-auto-av1?style=flat-square&color=58a6ff)](https://github.com/itsbonfiretime/handbrake-auto-av1/releases/latest)
-[![Platform Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4?style=flat-square&logo=windows)](https://github.com/itsbonfiretime/handbrake-auto-av1/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/itsbonfiretime/handbrake-auto-av1?style=flat-square&color=58a6ff)](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest)
+[![Platform Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4?style=flat-square&logo=windows)](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest)
 [![Code Python](https://img.shields.io/badge/python-3.10%20%7C%203.13-3776ab?style=flat-square&logo=python)](https://www.python.org/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
@@ -13,9 +13,9 @@ Entwickelt für maximale Einfachheit: **Video oder ganzen Ordner per Drag & Drop
 
 ## 📥 Download
 
-Lade die neueste, eigenständige `.exe` direkt aus den [GitHub Releases](https://github.com/itsbonfiretime/handbrake-auto-av1/releases/latest) herunter:
+Lade die neueste, eigenständige `.exe` direkt aus den [GitHub Releases](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest) herunter:
 
-👉 **[HandBrakeAutoAV1.exe herunterladen (Neueste Version)](https://github.com/itsbonfiretime/handbrake-auto-av1/releases/latest/download/HandBrakeAutoAV1.exe)**
+👉 **[HandBrakeAutoAV1.exe herunterladen (Neueste Version)](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest/download/HandBrakeAutoAV1.exe)**
 
 *Keine Vorinstallation von Python oder HandBrake nötig – alles ist in einer einzigen portablen Datei gebündelt!*
 
@@ -57,7 +57,7 @@ Lade die neueste, eigenständige `.exe` direkt aus den [GitHub Releases](https:/
 
 ### 2. Repository klonen & Abhängigkeiten installieren
 ```powershell
-git clone https://github.com/itsbonfiretime/handbrake-auto-av1.git
+git clone https://github.com/Bonfiretm/handbrake-auto-av1.git
 cd handbrake-auto-av1
 pip install -r requirements.txt
 pip install pyinstaller pillow

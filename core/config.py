@@ -17,7 +17,7 @@ DEFAULT_CONFIG = {
     "keep_chapters": True,
     "skip_existing_av1": True,
     "recursive_folder_scan": False,
-    "github_repo": "itsbonfiretime/handbrake-auto-av1",
+    "github_repo": "Bonfiretm/handbrake-auto-av1",
     "check_updates_on_startup": True,
 }
 
