@@ -22,6 +22,11 @@ Lade die neueste Version direkt aus den [GitHub Releases](https://github.com/Bon
 
 *Keine Vorinstallation von Python oder HandBrake nötig – alles ist enthalten!*
 
+> [!NOTE]
+> **Windows SmartScreen Hinweis:**  
+> Da es sich um ein neues Open-Source-Projekt handelt und keine teure kommerzielle Unternehmenssignatur verwendet wird, kann Windows beim ersten Start die Meldung *"Der Computer wurde durch Windows geschützt"* anzeigen.  
+> 👉 Klicke einfach auf **"Weitere Informationen"** und anschließend auf **"Trotzdem ausführen"**. Die Anwendung ist 100% quelloffen, virenfrei und transparent.
+
 ---
 
 ## 🌟 Highlights & Features
