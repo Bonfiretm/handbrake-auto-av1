@@ -48,6 +48,14 @@ class ReleaseInfo:
         return f"{mb:.1f} MB"
 
 
+def is_installed_mode() -> bool:
+    """Returns True if the application is running from an installed directory (with uninstaller)."""
+    if not getattr(sys, "frozen", False):
+        return False
+    exe_dir = Path(sys.executable).parent
+    return (exe_dir / "unins000.exe").exists()
+
+
 class CheckUpdateWorker(QThread):
     """Asynchronous worker to check for new releases on GitHub."""
 
@@ -92,18 +100,34 @@ class CheckUpdateWorker(QThread):
                 self.no_update.emit(self.current_version)
                 return
 
-            # Find executable asset
+            # Find executable asset based on installed vs portable mode
             assets = data.get("assets", [])
             target_asset = None
+            is_installed = is_installed_mode()
 
-            # First look for HandBrakeAutoAV1.exe
-            for asset in assets:
-                name = asset.get("name", "")
-                if name.lower().endswith(".exe") and "handbrake" in name.lower():
-                    target_asset = asset
-                    break
+            if is_installed:
+                # Installed mode: prefer Setup installer
+                for asset in assets:
+                    name = asset.get("name", "").lower()
+                    if name.endswith(".exe") and ("setup" in name or "installer" in name):
+                        target_asset = asset
+                        break
+            else:
+                # Portable mode: prefer standalone portable .exe
+                for asset in assets:
+                    name = asset.get("name", "").lower()
+                    if name.endswith(".exe") and "setup" not in name and "installer" not in name and "handbrake" in name:
+                        target_asset = asset
+                        break
 
-            # Fallback to any .exe asset
+            # Fallbacks: try any handbrake exe, then any exe
+            if not target_asset:
+                for asset in assets:
+                    name = asset.get("name", "").lower()
+                    if name.endswith(".exe") and "handbrake" in name:
+                        target_asset = asset
+                        break
+
             if not target_asset:
                 for asset in assets:
                     if asset.get("name", "").lower().endswith(".exe"):
@@ -111,7 +135,6 @@ class CheckUpdateWorker(QThread):
                         break
 
             if not target_asset:
-                # Release exists but without an exe asset
                 self.check_error.emit(
                     f"Neue Version {tag_name} auf GitHub gefunden, enthält jedoch kein .exe Asset zum Download."
                 )
@@ -228,9 +251,29 @@ def apply_update_and_restart(new_exe_path: Path) -> bool:
 
     pid = os.getpid()
     bat_file = Path(tempfile.gettempdir()) / "handbrake_updater.bat"
+    is_setup = "setup" in new_exe_path.name.lower() or "installer" in new_exe_path.name.lower()
 
-    # Batch script that waits for current process to exit, copies new exe over old exe, restarts, and self-deletes
-    bat_content = f"""@echo off
+    if is_setup:
+        # Run Inno Setup installer silently to upgrade in place
+        bat_content = f"""@echo off
+set PID={pid}
+set SETUP_EXE="{str(new_exe_path)}"
+set TARGET_EXE="{str(current_exe)}"
+
+:WAIT_LOOP
+timeout /t 1 /nobreak >nul
+tasklist /fi "PID eq %PID%" 2>nul | find "%PID%" >nul
+if not errorlevel 1 goto WAIT_LOOP
+
+timeout /t 1 /nobreak >nul
+start /wait "" %SETUP_EXE% /SILENT /NORESTART
+del %SETUP_EXE% 2>nul
+start "" %TARGET_EXE%
+del "%~f0"
+"""
+    else:
+        # Portable executable direct replacement
+        bat_content = f"""@echo off
 set PID={pid}
 set NEW_EXE="{str(new_exe_path)}"
 set TARGET_EXE="{str(current_exe)}"

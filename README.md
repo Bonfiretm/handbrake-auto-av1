@@ -13,11 +13,14 @@ Entwickelt für maximale Einfachheit: **Video oder ganzen Ordner per Drag & Drop
 
 ## 📥 Download
 
-Lade die neueste, eigenständige `.exe` direkt aus den [GitHub Releases](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest) herunter:
+Lade die neueste Version direkt aus den [GitHub Releases](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest) herunter:
 
-👉 **[HandBrakeAutoAV1.exe herunterladen (Neueste Version)](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest/download/HandBrakeAutoAV1.exe)**
+| Version | Download | Beschreibung |
+|---|---|---|
+| **Windows Setup (Empfohlen)** | [📦 **HandBrakeAutoAV1_Setup.exe**](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest/download/HandBrakeAutoAV1_Setup.exe) | Vollständige Installation mit Startmenü, Desktop-Icon & sauberer Deinstallation. Unterstützt automatische Silent-Updates. |
+| **Portable Version** | [🚀 **HandBrakeAutoAV1.exe**](https://github.com/Bonfiretm/handbrake-auto-av1/releases/latest/download/HandBrakeAutoAV1.exe) | Standalone-Datei. Startet direkt ohne Installation (z. B. für USB-Sticks). |
 
-*Keine Vorinstallation von Python oder HandBrake nötig – alles ist in einer einzigen portablen Datei gebündelt!*
+*Keine Vorinstallation von Python oder HandBrake nötig – alles ist enthalten!*
 
 ---
 
