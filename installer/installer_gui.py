@@ -186,9 +186,10 @@ class InstallWorker(QThread):
 class SetupWindow(QWidget):
     """PyQt6 Setup Wizard."""
 
-    def __init__(self, silent: bool = False):
+    def __init__(self, silent: bool = False, no_restart: bool = False):
         super().__init__()
         self.silent = silent
+        self.no_restart = no_restart
         self.setWindowTitle(f"{APP_NAME} Setup (v{APP_VERSION})")
         self.setFixedSize(560, 420)
         self.target_dir = DEFAULT_INSTALL_DIR
@@ -388,9 +389,10 @@ class SetupWindow(QWidget):
 
     def on_finished(self, success: bool, msg: str):
         if self.silent:
-            if success and self.cb_launch.isChecked():
+            if success and self.cb_launch.isChecked() and not self.no_restart:
                 target_exe = self.target_dir / "HandBrakeAutoAV1.exe"
-                subprocess.Popen([str(target_exe)])
+                if target_exe.exists():
+                    subprocess.Popen([str(target_exe)])
             sys.exit(0 if success else 1)
 
         if success:
@@ -416,9 +418,11 @@ class SetupWindow(QWidget):
 
 
 def main():
-    silent = "/silent" in [a.lower() for a in sys.argv] or "--silent" in [a.lower() for a in sys.argv]
+    args_lower = [a.lower() for a in sys.argv]
+    silent = "/silent" in args_lower or "--silent" in args_lower
+    no_restart = "/norestart" in args_lower or "--norestart" in args_lower
     app = QApplication(sys.argv)
-    w = SetupWindow(silent=silent)
+    w = SetupWindow(silent=silent, no_restart=no_restart)
     if not silent:
         w.show()
     sys.exit(app.exec())

@@ -163,7 +163,8 @@ class UpdateDialog(QDialog):
 
         self.download_worker = DownloadUpdateWorker(
             download_url=self.release_info.download_url,
-            expected_size=self.release_info.asset_size_bytes
+            expected_size=self.release_info.asset_size_bytes,
+            asset_name=self.release_info.asset_name
         )
         self.download_worker.progress.connect(self.on_download_progress)
         self.download_worker.download_finished.connect(self.on_download_finished)

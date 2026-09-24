@@ -53,7 +53,12 @@ def is_installed_mode() -> bool:
     if not getattr(sys, "frozen", False):
         return False
     exe_dir = Path(sys.executable).parent
-    return (exe_dir / "unins000.exe").exists()
+    if (exe_dir / "unins000.exe").exists() or (exe_dir / "uninstall.bat").exists():
+        return True
+    exe_str = str(sys.executable).lower()
+    if "\\programs\\handbrakeautoav1" in exe_str or "program files" in exe_str:
+        return True
+    return False
 
 
 class CheckUpdateWorker(QThread):
@@ -175,10 +180,11 @@ class DownloadUpdateWorker(QThread):
     download_finished = pyqtSignal(Path)
     download_error = pyqtSignal(str)
 
-    def __init__(self, download_url: str, expected_size: int = 0):
+    def __init__(self, download_url: str, expected_size: int = 0, asset_name: str = "HandBrakeAutoAV1.exe"):
         super().__init__()
         self.download_url = download_url
         self.expected_size = expected_size
+        self.asset_name = asset_name or "HandBrakeAutoAV1.exe"
         self._is_cancelled = False
 
     def cancel(self):
@@ -188,7 +194,10 @@ class DownloadUpdateWorker(QThread):
         try:
             temp_dir = Path(tempfile.gettempdir()) / "HandBrakeAutoAV1_Update"
             temp_dir.mkdir(parents=True, exist_ok=True)
-            target_file = temp_dir / "HandBrakeAutoAV1_new.exe"
+            safe_name = re.sub(r'[\\/*?:"<>|]', "", self.asset_name)
+            if not safe_name.lower().endswith(".exe"):
+                safe_name += ".exe"
+            target_file = temp_dir / safe_name
 
             if target_file.exists():
                 try:
@@ -240,7 +249,6 @@ def apply_update_and_restart(new_exe_path: Path) -> bool:
 
     if not is_frozen:
         # Development mode: Cannot overwrite running python script
-        # Check if dist/HandBrakeAutoAV1.exe exists
         dist_exe = Path(__file__).resolve().parent.parent / "dist" / "HandBrakeAutoAV1.exe"
         if dist_exe.exists():
             current_exe = dist_exe
@@ -254,49 +262,97 @@ def apply_update_and_restart(new_exe_path: Path) -> bool:
     is_setup = "setup" in new_exe_path.name.lower() or "installer" in new_exe_path.name.lower()
 
     if is_setup:
-        # Run Inno Setup installer silently to upgrade in place
+        local_app_data = os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
+        installed_exe = Path(local_app_data) / "Programs" / "HandBrakeAutoAV1" / "HandBrakeAutoAV1.exe"
+        if current_exe.exists() and "programs\\handbrakeautoav1" in str(current_exe).lower():
+            target_to_launch = current_exe
+        else:
+            target_to_launch = installed_exe
+
         bat_content = f"""@echo off
+setlocal enabledelayedexpansion
+title HandBrake Auto AV1 Updater
+
 set PID={pid}
-set SETUP_EXE="{str(new_exe_path)}"
-set TARGET_EXE="{str(current_exe)}"
+set "SETUP_EXE={str(new_exe_path.resolve())}"
+set "TARGET_EXE={str(target_to_launch.resolve())}"
 
-:WAIT_LOOP
-timeout /t 1 /nobreak >nul
+:: 1. Wait for parent process to exit
+:WAIT_PID
 tasklist /fi "PID eq %PID%" 2>nul | find "%PID%" >nul
-if not errorlevel 1 goto WAIT_LOOP
-
-timeout /t 1 /nobreak >nul
-start /wait "" %SETUP_EXE% /SILENT /NORESTART
-del %SETUP_EXE% 2>nul
-start "" %TARGET_EXE%
-del "%~f0"
-"""
-    else:
-        # Portable executable direct replacement
-        bat_content = f"""@echo off
-set PID={pid}
-set NEW_EXE="{str(new_exe_path)}"
-set TARGET_EXE="{str(current_exe)}"
-
-:WAIT_LOOP
-timeout /t 1 /nobreak >nul
-tasklist /fi "PID eq %PID%" 2>nul | find "%PID%" >nul
-if not errorlevel 1 goto WAIT_LOOP
-
-timeout /t 1 /nobreak >nul
-copy /y %NEW_EXE% %TARGET_EXE% >nul
-if errorlevel 1 (
-    timeout /t 2 /nobreak >nul
-    copy /y %NEW_EXE% %TARGET_EXE% >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto WAIT_PID
 )
 
-del %NEW_EXE% 2>nul
-start "" %TARGET_EXE%
-del "%~f0"
+timeout /t 1 /nobreak >nul
+
+:: 2. Run Setup silently with no automatic restart
+start /wait "" "%SETUP_EXE%" /silent /norestart
+del "%SETUP_EXE%" 2>nul
+
+:: 3. Launch newly installed application
+if exist "%TARGET_EXE%" (
+    start "" "%TARGET_EXE%"
+)
+
+:: 4. Clean up this batch script
+(goto) 2>nul & del "%~f0"
+"""
+    else:
+        bat_content = f"""@echo off
+setlocal enabledelayedexpansion
+title HandBrake Auto AV1 Updater
+
+set PID={pid}
+set "NEW_EXE={str(new_exe_path.resolve())}"
+set "TARGET_EXE={str(current_exe.resolve())}"
+set "OLD_EXE={str(current_exe.resolve())}.old"
+
+:: 1. Wait for parent process to exit
+:WAIT_PID
+tasklist /fi "PID eq %PID%" 2>nul | find "%PID%" >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto WAIT_PID
+)
+
+timeout /t 1 /nobreak >nul
+
+:: 2. Rename-replace strategy: rename target -> old, then move new -> target
+set RETRY=0
+:RETRY_LOOP
+del "%OLD_EXE%" >nul 2>&1
+move /y "%TARGET_EXE%" "%OLD_EXE%" >nul 2>&1
+if not errorlevel 1 goto MOVE_NEW
+
+set /a RETRY+=1
+if !RETRY! leq 10 (
+    timeout /t 1 /nobreak >nul
+    goto RETRY_LOOP
+)
+
+:MOVE_NEW
+move /y "%NEW_EXE%" "%TARGET_EXE%" >nul 2>&1
+if errorlevel 1 (
+    copy /y "%NEW_EXE%" "%TARGET_EXE%" >nul 2>&1
+)
+
+:: 3. Clean up temporary files
+del "%OLD_EXE%" >nul 2>&1
+del "%NEW_EXE%" >nul 2>&1
+
+:: 4. Start updated application
+if exist "%TARGET_EXE%" (
+    start "" "%TARGET_EXE%"
+)
+
+:: 5. Clean up this batch script
+(goto) 2>nul & del "%~f0"
 """
 
     try:
-        with open(bat_file, "w", encoding="ascii") as f:
+        with open(bat_file, "w", encoding="ascii", errors="ignore") as f:
             f.write(bat_content)
 
         flags = 0
