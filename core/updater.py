@@ -13,7 +13,7 @@ from typing import Optional, Tuple
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 
 def parse_version_tuple(version_str: str) -> Tuple[int, ...]:

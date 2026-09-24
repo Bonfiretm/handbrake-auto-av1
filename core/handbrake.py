@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
@@ -264,6 +265,61 @@ class VideoScanWorker(QThread):
             self.scan_failed.emit(f"Fehler bei der Analyse: {str(e)}")
 
 
+def send_file_to_recycle_bin(file_path: Path) -> bool:
+    """Moves a file safely to the Windows Recycle Bin, falling back to permanent delete if unavailable."""
+    if not file_path.exists():
+        return True
+
+    for _ in range(3):
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                class SHFILEOPSTRUCT(ctypes.Structure):
+                    _fields_ = [
+                        ('hwnd', wintypes.HWND),
+                        ('wFunc', wintypes.UINT),
+                        ('pFrom', wintypes.LPCWSTR),
+                        ('pTo', wintypes.LPCWSTR),
+                        ('fFlags', wintypes.WORD),
+                        ('fAnyOperationsAborted', wintypes.BOOL),
+                        ('hNameMappings', wintypes.LPVOID),
+                        ('lpszProgressTitle', wintypes.LPCWSTR),
+                    ]
+
+                FO_DELETE = 3
+                FOF_ALLOWUNDO = 0x0040
+                FOF_NOCONFIRMATION = 0x0010
+                FOF_SILENT = 0x0004
+
+                path_str = str(file_path.resolve()) + '\0\0'
+                op = SHFILEOPSTRUCT(
+                    hwnd=None,
+                    wFunc=FO_DELETE,
+                    pFrom=path_str,
+                    pTo=None,
+                    fFlags=FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT,
+                    fAnyOperationsAborted=False,
+                    hNameMappings=None,
+                    lpszProgressTitle=None
+                )
+                res = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+                if res == 0 and not op.fAnyOperationsAborted and not file_path.exists():
+                    return True
+            except Exception:
+                pass
+
+        try:
+            file_path.unlink(missing_ok=True)
+            if not file_path.exists():
+                return True
+        except Exception:
+            time.sleep(0.2)
+
+    return not file_path.exists()
+
+
 class ConversionWorker(QThread):
     """Executes HandBrakeCLI encoding to AV1 10-bit and emits live progress."""
     conversion_started = pyqtSignal()
@@ -282,11 +338,29 @@ class ConversionWorker(QThread):
         super().__init__()
         self.hb_cli = Path(hb_cli)
         self.input_path = Path(input_path)
-        self.output_path = Path(output_path)
+        self.final_output_path = Path(output_path)
         self.metadata = metadata
         self.config = config
+        self.delete_source = self.config.get("delete_source_after_conversion", False)
         self.process: Optional[subprocess.Popen] = None
         self._is_cancelled = False
+
+        # In-place overwrite detection:
+        # If output path is identical to input path (e.g. converting in-place Vajana.mkv -> Vajana.mkv)
+        self.is_in_place_overwrite = False
+        try:
+            if self.final_output_path.resolve() == self.input_path.resolve():
+                self.is_in_place_overwrite = True
+        except Exception:
+            if str(self.final_output_path).lower() == str(self.input_path).lower():
+                self.is_in_place_overwrite = True
+
+        if self.is_in_place_overwrite:
+            self.temp_output_path = self.final_output_path.parent / f"{self.final_output_path.stem}.tmp_av1_{os.getpid()}.mkv"
+            self.output_path = self.temp_output_path
+        else:
+            self.temp_output_path = None
+            self.output_path = self.final_output_path
 
     def cancel(self):
         """Cancels the active conversion."""
@@ -299,6 +373,17 @@ class ConversionWorker(QThread):
                     self.process.kill()
                 except Exception:
                     pass
+        # Clean up temporary or incomplete output file
+        if self.temp_output_path and self.temp_output_path.exists():
+            try:
+                self.temp_output_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+        elif self.output_path and self.output_path.exists() and self.output_path != self.input_path:
+            try:
+                self.output_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     def build_command(self) -> List[str]:
         """Builds exact HandBrakeCLI arguments preserving resolution and framerate."""
@@ -466,17 +551,59 @@ class ConversionWorker(QThread):
             exit_code = self.process.poll()
 
             if self._is_cancelled:
+                if self.temp_output_path and self.temp_output_path.exists():
+                    try:
+                        self.temp_output_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                elif self.output_path and self.output_path.exists() and self.output_path != self.input_path:
+                    try:
+                        self.output_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
                 self.conversion_finished.emit(False, "Abgebrochen.", "")
                 return
 
-            if exit_code == 0:
+            if exit_code == 0 and self.output_path.exists() and self.output_path.stat().st_size > 0:
                 self.progress_updated.emit(100.0, 0.0, 0, "Erfolgreich abgeschlossen!")
+
+                # Handle in-place overwrite or source deletion
+                if self.is_in_place_overwrite:
+                    self.log_line_received.emit("Ersetze Originaldatei mit AV1-10bit Version...")
+                    time.sleep(0.3)
+                    send_file_to_recycle_bin(self.input_path)
+                    try:
+                        if self.final_output_path.exists():
+                            send_file_to_recycle_bin(self.final_output_path)
+                        shutil.move(str(self.temp_output_path), str(self.final_output_path))
+                        self.log_line_received.emit(f"Originaldatei erfolgreich ersetzt: {self.final_output_path.name}")
+                    except Exception as ex:
+                        self.log_line_received.emit(f"Fehler beim Ersetzen der Quelldatei: {ex}")
+                elif self.delete_source:
+                    time.sleep(0.3)
+                    try:
+                        is_same = self.input_path.resolve() == self.final_output_path.resolve()
+                    except Exception:
+                        is_same = str(self.input_path).lower() == str(self.final_output_path).lower()
+
+                    if not is_same and self.input_path.exists():
+                        del_ok = send_file_to_recycle_bin(self.input_path)
+                        if del_ok:
+                            self.log_line_received.emit(f"Quelldatei in Papierkorb verschoben: {self.input_path.name}")
+                        else:
+                            self.log_line_received.emit(f"Quelldatei konnte nicht gelöscht werden: {self.input_path.name}")
+
                 self.conversion_finished.emit(
                     True,
-                    f"Erfolgreich konvertiert:\n{self.output_path.name}",
-                    str(self.output_path)
+                    f"Erfolgreich konvertiert:\n{self.final_output_path.name}",
+                    str(self.final_output_path)
                 )
             else:
+                if self.temp_output_path and self.temp_output_path.exists():
+                    try:
+                        self.temp_output_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
                 self.conversion_finished.emit(
                     False,
                     f"HandBrake beendete mit Fehlercode {exit_code}.",
@@ -654,7 +781,9 @@ def scan_folder_for_queue(
     output_dir: Optional[Path],
     use_same_dir: bool,
     recursive: bool = False,
-    skip_existing_av1: bool = True
+    skip_existing_av1: bool = True,
+    append_av1_suffix: bool = True,
+    delete_source: bool = False
 ) -> List[QueueItem]:
     """Scans folder for videos, identifying files and auto-skipping already converted AV1-10bit files."""
     items: List[QueueItem] = []
@@ -667,6 +796,8 @@ def scan_folder_for_queue(
         candidates = [p for p in folder_path.glob("*") if p.is_file()]
 
     video_files = [f for f in candidates if f.suffix.lower() in VIDEO_EXTENSIONS_SET]
+    # Filter out temporary conversion files
+    video_files = [f for f in video_files if ".tmp_av1_" not in f.name]
     # Sort alphabetically
     video_files.sort(key=lambda p: p.name.lower())
 
@@ -679,7 +810,16 @@ def scan_folder_for_queue(
         else:
             dest_dir = Path(output_dir)
 
-        target_file = dest_dir / f"{f.stem}_AV1-10bit.mkv"
+        if append_av1_suffix:
+            target_file = dest_dir / f"{f.stem}_AV1-10bit.mkv"
+        else:
+            target_file = dest_dir / f"{f.stem}.mkv"
+
+        try:
+            is_same_file = f.resolve() == target_file.resolve()
+        except Exception:
+            is_same_file = str(f).lower() == str(target_file).lower()
+
         target_exists = target_file.exists() and target_file.stat().st_size > 0
 
         try:
@@ -694,9 +834,12 @@ def scan_folder_for_queue(
             if is_av1_name:
                 status = "Übersprungen"
                 skip_reason = "Bereits AV1-10bit Datei"
-            elif target_exists and f != target_file:
+            elif target_exists and not is_same_file:
                 status = "Übersprungen"
-                skip_reason = f"AV1-10bit Zieldatei existiert bereits"
+                skip_reason = "Zieldatei existiert bereits"
+            elif is_same_file and not delete_source:
+                status = "Übersprungen"
+                skip_reason = "Zieldatei = Quelle (Überschreiben deaktiviert)"
 
         item = QueueItem(
             file_path=f,

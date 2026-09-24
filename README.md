@@ -51,6 +51,12 @@ Lade die neueste Version direkt aus den [GitHub Releases](https://github.com/Bon
   - Einstellbare Qualität (RF-Slider, Standard: `RF 26`) und Geschwindigkeit (Preset 4–8, Standard: `Preset 6`).
 - **💎 Modernes Dark Theme & Auto-Resize**:
   - Responsive Benutzeroberfläche, die sich beim Auf- und Zuklappen von Inhalten automatisch in der Größe anpasst.
+- **🏷️ Flexibles Dateinamen-Schema**:
+  - Kontrollkästchen für `_AV1-10bit` im Dateinamen (z. B. `Film_AV1-10bit.mkv`).
+  - Wenn deaktiviert, wird der Originaltitel der Quelldatei beibehalten (`Film.mkv`).
+- **🗑️ Sicheres Löschen & Überschreiben der Quelldatei**:
+  - Optionales Löschen der Originaldatei erst nach 100% erfolgreicher und geprüfter Konvertierung (verschiebt sicher in den Windows-Papierkorb).
+  - Bei identischem Zieldateinamen wird die Quelldatei unterbrechungsfrei über temporäre Dateien sicher durch die AV1-10Bit Version ersetzt.
 - **📁 Flexibler Ausgabeordner**:
   - Standardmäßig im selben Ordner wie die Quelldatei oder in einem frei wählbaren Zielverzeichnis.
   - Nach Fertigstellung öffnet ein Klick direkt den Ordner im Windows-Explorer.

@@ -389,6 +389,17 @@ class MainWindow(QWidget):
         )
         hero_layout.addWidget(self.param_note)
 
+        target_info_row = QHBoxLayout()
+        target_info_row.setSpacing(6)
+        lbl_target_title = QLabel("🎯 Zieldatei:")
+        lbl_target_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #8b949e;")
+        self.lbl_target_file_preview = QLabel("-")
+        self.lbl_target_file_preview.setStyleSheet("font-size: 11px; font-weight: 700; color: #58a6ff;")
+        self.lbl_target_file_preview.setWordWrap(True)
+        target_info_row.addWidget(lbl_target_title)
+        target_info_row.addWidget(self.lbl_target_file_preview, stretch=1)
+        hero_layout.addLayout(target_info_row)
+
         self.hero_card.setVisible(False)
         main_layout.addWidget(self.hero_card)
 
@@ -463,24 +474,47 @@ class MainWindow(QWidget):
         settings_layout.setContentsMargins(14, 12, 14, 12)
         settings_layout.setSpacing(8)
 
-        # Settings Checkboxes Row
-        checks_row = QHBoxLayout()
+        # Settings Checkboxes
+        checks_vbox = QVBoxLayout()
+        checks_vbox.setSpacing(6)
+
+        checks_row1 = QHBoxLayout()
         self.cb_auto_convert = QCheckBox("⚡ Sofort automatisch konvertieren (One-Drop Mode)")
         self.cb_auto_convert.setChecked(self.config.get("auto_convert_on_drop", True))
         self.cb_auto_convert.setStyleSheet("font-weight: 600; font-size: 12px; color: #f0f6fc;")
         self.cb_auto_convert.toggled.connect(self.on_setting_changed)
-        checks_row.addWidget(self.cb_auto_convert)
+        checks_row1.addWidget(self.cb_auto_convert)
 
-        checks_row.addSpacing(20)
+        checks_row1.addSpacing(20)
 
         self.cb_check_updates = QCheckBox("🔄 Beim Start nach Updates suchen")
         self.cb_check_updates.setChecked(self.config.get("check_updates_on_startup", True))
         self.cb_check_updates.setStyleSheet("font-weight: 500; font-size: 11px; color: #8b949e;")
         self.cb_check_updates.toggled.connect(self.on_setting_changed)
-        checks_row.addWidget(self.cb_check_updates)
-        checks_row.addStretch()
+        checks_row1.addWidget(self.cb_check_updates)
+        checks_row1.addStretch()
+        checks_vbox.addLayout(checks_row1)
 
-        settings_layout.addLayout(checks_row)
+        checks_row2 = QHBoxLayout()
+        self.cb_append_av1_suffix = QCheckBox("🏷️ '_AV1-10bit' im Dateinamen anhängen")
+        self.cb_append_av1_suffix.setToolTip("Aktiviert: Film_AV1-10bit.mkv • Deaktiviert: Behält den Titel der Quelldatei bei (Film.mkv)")
+        self.cb_append_av1_suffix.setChecked(self.config.get("append_av1_suffix", True))
+        self.cb_append_av1_suffix.setStyleSheet("font-weight: 600; font-size: 12px; color: #f0f6fc;")
+        self.cb_append_av1_suffix.toggled.connect(self.on_naming_setting_changed)
+        checks_row2.addWidget(self.cb_append_av1_suffix)
+
+        checks_row2.addSpacing(20)
+
+        self.cb_delete_source = QCheckBox("🗑️ Quelldatei nach erfolgreicher Konvertierung löschen")
+        self.cb_delete_source.setToolTip("Löscht die Originaldatei erst nach 100% fehlerfreier Konvertierung (verschiebt sicher in den Windows-Papierkorb). Bei gleichem Dateinamen wird die Quelldatei überschrieben.")
+        self.cb_delete_source.setChecked(self.config.get("delete_source_after_conversion", False))
+        self.cb_delete_source.setStyleSheet("font-weight: 600; font-size: 12px; color: #f85149;")
+        self.cb_delete_source.toggled.connect(self.on_naming_setting_changed)
+        checks_row2.addWidget(self.cb_delete_source)
+        checks_row2.addStretch()
+        checks_vbox.addLayout(checks_row2)
+
+        settings_layout.addLayout(checks_vbox)
 
         # Output Folder Row
         out_box = QVBoxLayout()
@@ -836,8 +870,36 @@ class MainWindow(QWidget):
         self.config["quality_rf"] = self.slider_rf.value()
         self.config["encoder_preset"] = str(self.slider_preset.value())
         self.config["recursive_folder_scan"] = self.cb_recursive.isChecked()
+        self.config["append_av1_suffix"] = self.cb_append_av1_suffix.isChecked()
+        self.config["delete_source_after_conversion"] = self.cb_delete_source.isChecked()
         self.config["check_updates_on_startup"] = self.cb_check_updates.isChecked()
         save_config(self.config)
+
+    def on_naming_setting_changed(self):
+        self.on_setting_changed()
+        self.update_target_preview()
+        if self.mode == "batch" and self.current_folder:
+            if not (self.batch_worker and self.batch_worker.isRunning()):
+                self.on_folder_selected(self.current_folder)
+
+    def update_target_preview(self):
+        if self.current_metadata and self.current_metadata.file_path:
+            out_p = self.determine_output_path(self.current_metadata.file_path)
+            del_src = self.cb_delete_source.isChecked()
+            try:
+                is_same = out_p.resolve() == self.current_metadata.file_path.resolve()
+            except Exception:
+                is_same = str(out_p).lower() == str(self.current_metadata.file_path).lower()
+
+            if is_same and del_src:
+                status_txt = f"{out_p.name} (Originaldatei wird sicher ersetzt/überschrieben)"
+            elif del_src:
+                status_txt = f"{out_p.name} (Quelldatei wird nach Erfolg gelöscht)"
+            else:
+                status_txt = f"{out_p.name}"
+
+            if hasattr(self, "lbl_target_file_preview"):
+                self.lbl_target_file_preview.setText(status_txt)
 
     # ----------------- Single File Handling -----------------
     def on_file_selected(self, path: Path):
@@ -861,6 +923,7 @@ class MainWindow(QWidget):
         self.progress_bar.setValue(0)
         self.btn_convert.setEnabled(False)
         self.btn_open_folder.setVisible(False)
+        self.lbl_target_file_preview.setText("-")
         self.log_console.clear()
 
         self.scan_worker = VideoScanWorker(path, self.hb_cli)
@@ -883,6 +946,7 @@ class MainWindow(QWidget):
             audio_str += f" ({meta.audio_tracks[0]})"
         self.lbl_audio.setText(audio_str)
 
+        self.update_target_preview()
         self.hero_card.setVisible(True)
         self.trigger_auto_adjust()
         self.btn_convert.setEnabled(True)
@@ -923,13 +987,17 @@ class MainWindow(QWidget):
         use_same = self.rb_same_dir.isChecked()
         out_dir = None if use_same else Path(self.txt_output_dir.text().strip())
         recursive = self.cb_recursive.isChecked()
+        append_suffix = self.cb_append_av1_suffix.isChecked()
+        delete_source = self.cb_delete_source.isChecked()
 
         self.batch_queue = scan_folder_for_queue(
             folder_path=folder_path,
             output_dir=out_dir,
             use_same_dir=use_same,
             recursive=recursive,
-            skip_existing_av1=True
+            skip_existing_av1=True,
+            append_av1_suffix=append_suffix,
+            delete_source=delete_source
         )
 
         total_files = len(self.batch_queue)
@@ -1189,17 +1257,33 @@ class MainWindow(QWidget):
     def determine_output_path(self, input_path: Path) -> Path:
         stem = input_path.stem
         ext = ".mkv"
+        append_suffix = self.cb_append_av1_suffix.isChecked()
+        delete_source = self.cb_delete_source.isChecked()
 
         if self.rb_same_dir.isChecked() or not self.txt_output_dir.text().strip():
             target_dir = input_path.parent
         else:
             target_dir = Path(self.txt_output_dir.text().strip())
 
-        output_file = target_dir / f"{stem}_AV1-10bit{ext}"
-        counter = 1
-        while output_file.exists():
-            output_file = target_dir / f"{stem}_AV1-10bit_{counter}{ext}"
-            counter += 1
+        base_name = f"{stem}_AV1-10bit{ext}" if append_suffix else f"{stem}{ext}"
+        output_file = target_dir / base_name
+
+        try:
+            is_same = output_file.resolve() == input_path.resolve()
+        except Exception:
+            is_same = str(output_file).lower() == str(input_path).lower()
+
+        # If user wants to replace/delete source and output is the same path, return directly
+        if delete_source and is_same:
+            return output_file
+
+        # If file already exists and is not replacing source in-place, find next available filename
+        if output_file.exists() and not (delete_source and is_same):
+            counter = 1
+            suffix_part = "_AV1-10bit" if append_suffix else ""
+            while output_file.exists():
+                output_file = target_dir / f"{stem}{suffix_part}_{counter}{ext}"
+                counter += 1
 
         return output_file
 
